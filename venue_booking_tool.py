@@ -56,7 +56,7 @@ class BookingApp:
         booking = ttk.LabelFrame(frm, text="第二步：选择预约条件", style="Section.TLabelframe"); booking.pack(fill="x", pady=(0, 10))
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
         ttk.Label(row, text="预约日期", width=12).pack(side="left")
-        dates = [(date.today() + timedelta(days=i)).isoformat() for i in range(31)]
+        dates = [(date.today() + timedelta(days=i)).isoformat() for i in range(90)]
         self.date = ttk.Combobox(row, values=dates, state="readonly", width=16)
         self.date.current(1); self.date.pack(side="left", padx=8)
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
