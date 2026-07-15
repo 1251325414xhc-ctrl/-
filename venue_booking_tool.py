@@ -59,7 +59,7 @@ class BookingApp:
             ttk.Checkbutton(time_box, text=x, variable=var).grid(row=n // 4, column=n % 4, sticky="w", padx=3)
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
         ttk.Label(row, text="场地优先级（可多选）", width=12).pack(side="left", anchor="n")
-        court_options = [f"一楼 {i}号场" for i in range(1, 9)] + [f"二楼 {i}号场" for i in range(1, 13)]
+        court_options = ["一楼塑胶1", "一楼塑胶2", "一楼塑胶3", "一楼木质4", "一楼塑胶6", "一楼塑胶7", "一楼木质8"] + [f"二楼塑胶{i}" for i in range(1, 13)]
         self.court_vars = {}
         court_box = ttk.Frame(row); court_box.pack(side="left", padx=8, fill="x", expand=True)
         for n, x in enumerate(court_options):
@@ -174,9 +174,7 @@ class BookingApp:
                     if await self._click_text_variants([t, t_start], 800):
                         self.write(f"已选择时间段 {t}")
                         for c in courts:
-                            floor, number = c.split()
-                            variants = [c, c.replace(" ", ""), f"{floor}{number}", number, number.replace("号场", "")]
-                            if await self._click_text_variants(variants, 800):
+                            if await self._click_court_slot(c, t):
                                 self.write(f"已点击场地 {c}，正在查找“请选择场地并提交”按钮……")
                                 await self._go_payment_page()
                                 return
@@ -197,6 +195,21 @@ class BookingApp:
                     return True
             except Exception:
                 continue
+        return False
+
+    async def _click_court_slot(self, court_label, time_label):
+        """按截图中的表格布局，点击场地行与时间列的交叉单元格。"""
+        try:
+            row = self.page.get_by_text(court_label, exact=True).first
+            col = self.page.get_by_text(time_label, exact=True).first
+            if not await row.count() or not await col.count():
+                return await self._click_text_variants([court_label], 600)
+            rb, cb = await row.bounding_box(), await col.bounding_box()
+            if rb and cb:
+                await self.page.mouse.click(cb["x"] + cb["width"] / 2, rb["y"] + rb["height"] / 2)
+                return True
+        except Exception as e:
+            self.write(f"表格交叉点点击失败：{e}")
         return False
 
     async def _select_calendar_date(self, date_text):
