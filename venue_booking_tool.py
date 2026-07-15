@@ -174,6 +174,7 @@ class BookingApp:
                     return
                 if date:
                     await self._select_calendar_date(date)
+                await self._refresh_label_cache(times, courts)
                 for t in times:
                     t_start = t.split("-")[0]
                     if await self._click_text_variants([t, t_start], 120):
@@ -206,6 +207,11 @@ class BookingApp:
         """按截图中的表格布局，点击场地行与时间列的交叉单元格。"""
         try:
             key = (court_label, time_label)
+            row_xy = self._slot_cache.get(("__label__", court_label))
+            col_xy = self._slot_cache.get(("__label__", time_label))
+            if row_xy and col_xy:
+                await self.page.mouse.click(col_xy[0], row_xy[1])
+                return True
             if key in self._slot_cache:
                 x, y = self._slot_cache[key]
                 await self.page.mouse.click(x, y)
@@ -224,6 +230,23 @@ class BookingApp:
         except Exception as e:
             self.write(f"表格交叉点点击失败：{e}")
         return False
+
+    async def _refresh_label_cache(self, times, courts):
+        """一次性扫描页面文本节点，缓存时间列和场地行坐标。"""
+        try:
+            labels = list(dict.fromkeys(times + courts))
+            found = await self.page.evaluate("""labels => {
+              const out = {};
+              for (const el of document.querySelectorAll('*')) {
+                const t = (el.innerText || '').trim();
+                if (labels.includes(t)) { const r = el.getBoundingClientRect(); if (r.width && r.height) out[t] = {x:r.x+r.width/2,y:r.y+r.height/2}; }
+              }
+              return out;
+            }""", labels)
+            for k, v in found.items():
+                self._slot_cache[("__label__", k)] = (v["x"], v["y"])
+        except Exception:
+            pass
 
     async def _select_calendar_date(self, date_text):
         """选择 uni-app 日历中的日期，例如 2026-07-15 -> 点击 15。"""
