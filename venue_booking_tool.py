@@ -202,7 +202,9 @@ class BookingApp:
 
     async def _go_payment_page(self):
         """尝试推进到订单/付款页面，但不执行支付。"""
-        for label in ["提交订单", "立即预约", "预约", "下一步", "确认提交"]:
+        labels = ["提交订单", "立即预约", "立即预订", "预约", "预订", "下一步", "确认提交", "去支付", "支付"]
+        # 先尝试常规文本定位，兼容 uni-app 中文字包在多层 view 的情况。
+        for label in labels:
             try:
                 button = self.page.get_by_text(label, exact=True).first
                 if await button.count() and await button.is_visible():
@@ -212,6 +214,20 @@ class BookingApp:
                     return
             except Exception:
                 continue
+        # 再遍历可点击元素，处理文本带空格、换行或图标的情况。
+        try:
+            for i in range(await self.page.locator("[class*=button], [class*=btn], [role=button]").count()):
+                item = self.page.locator("[class*=button], [class*=btn], [role=button]").nth(i)
+                if not await item.is_visible():
+                    continue
+                text = " ".join((await item.inner_text()).split())
+                if any(label in text for label in labels):
+                    await item.click()
+                    await self.page.wait_for_timeout(1000)
+                    self.write(f"已点击“{text[:20]}”，请检查是否已进入付款页面。")
+                    return
+        except Exception:
+            pass
         self.write("已选中场地，但未找到自动进入付款页面的按钮，请在浏览器中点击预约或提交订单。")
 if __name__ == "__main__":
     root = tk.Tk(); BookingApp(root); root.mainloop()
