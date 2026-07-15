@@ -301,6 +301,27 @@ class BookingApp:
     async def _submit_selected_court(self):
         """等待底部提交按钮更新后自动点击。"""
         for _ in range(12):
+            # uni-app 底部固定按钮可能是 div/view，直接触发其最近可点击父节点。
+            try:
+                clicked = await self.page.evaluate("""() => {
+                  const keys=['请选择场地并提交','场地并提交','提交订单','立即预约','确认提交'];
+                  for (const el of document.querySelectorAll('*')) {
+                    const t=(el.innerText||'').replace(/\\s+/g,'').trim();
+                    if (keys.some(k=>t.includes(k)) && el.getBoundingClientRect().width>100) {
+                      const target=el.closest('button,[role=button],[class*=button],[class*=btn]') || el;
+                      target.click(); return t;
+                    }
+                  }
+                  return '';
+                }""")
+                if clicked:
+                    self.write(f"已自动触发提交控件“{clicked[:20]}”，正在进入付款页面……")
+                    await self.page.wait_for_timeout(600)
+                    self.write(f"当前页面：{self.page.url}")
+                    await self._go_payment_page()
+                    return
+            except Exception:
+                pass
             for label in ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "确认提交"]:
                 try:
                     button = self.page.get_by_text(label, exact=False).first
