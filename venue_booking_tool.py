@@ -144,8 +144,12 @@ class BookingApp:
                 await self.page.reload(wait_until="domcontentloaded")
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
                 await self.page.wait_for_timeout(800)
+                body_text = await self.page.locator("body").inner_text()
+                if "登录状态已过期" in body_text or "请先登录" in body_text:
+                    self.write("登录状态已过期，请在浏览器弹窗中点击“确定”并重新登录，然后再开始监控。")
+                    return
                 if date:
-                    await self._click_text_variants([date, date.replace("-", "/")], 800)
+                    await self._select_calendar_date(date)
                 for t in times:
                     t_start = t.split("-")[0]
                     if await self._click_text_variants([t, t_start], 800):
@@ -174,6 +178,26 @@ class BookingApp:
                     return True
             except Exception:
                 continue
+        return False
+
+    async def _select_calendar_date(self, date_text):
+        """选择 uni-app 日历中的日期，例如 2026-07-15 -> 点击 15。"""
+        try:
+            target = datetime.strptime(date_text, "%Y-%m-%d")
+            month_label = f"{target.year}年{target.month:02d}月"
+            await self._click_text_variants([month_label, f"{target.year}年{target.month}月"], 500)
+            day = str(target.day)
+            # 日历日期通常是按钮/文本节点，优先使用精确文本，避免误点说明文字。
+            candidates = self.page.get_by_text(day, exact=True)
+            for i in range(await candidates.count()):
+                item = candidates.nth(i)
+                if await item.is_visible():
+                    await item.click();
+                    self.write(f"已选择日期 {date_text}")
+                    await self.page.wait_for_timeout(500)
+                    return True
+        except Exception as e:
+            self.write(f"日期选择失败：{e}")
         return False
 
     async def _go_payment_page(self):
