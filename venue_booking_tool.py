@@ -54,18 +54,22 @@ class BookingApp:
         ttk.Label(row, text="时间段（可多选）", width=12).pack(side="left", anchor="n")
         time_options = [f"{h:02d}:00-{h+1:02d}:00" for h in range(14, 21)]
         self.time_vars = {}
-        time_box = ttk.Frame(row); time_box.pack(side="left", padx=8, fill="x", expand=True)
+        time_box = ttk.LabelFrame(row, text="选择一个或多个预约时段", padding=6); time_box.pack(side="left", padx=8, fill="x", expand=True)
         for n, x in enumerate(time_options):
             var = tk.BooleanVar(value=False); self.time_vars[x] = var
             ttk.Checkbutton(time_box, text=x, variable=var).grid(row=n // 4, column=n % 4, sticky="w", padx=3)
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
         ttk.Label(row, text="场地优先级（可多选）", width=12).pack(side="left", anchor="n")
-        court_options = ["一楼塑胶1", "一楼塑胶2", "一楼塑胶3", "一楼木质4", "一楼塑胶6", "一楼塑胶7", "一楼木质8"] + [f"二楼塑胶{i}" for i in range(1, 13)]
+        court_options = ["一楼塑胶1", "一楼塑胶2", "一楼塑胶3", "一楼木质4", "一楼塑胶5", "一楼塑胶6", "一楼塑胶7", "一楼木质8"] + [f"二楼塑胶{i}" for i in range(1, 13)]
         self.court_vars = {}
         court_box = ttk.Frame(row); court_box.pack(side="left", padx=8, fill="x", expand=True)
+        floor1 = ttk.LabelFrame(court_box, text="一楼（8个场地）", padding=5); floor1.pack(fill="x", pady=(0, 5))
+        floor2 = ttk.LabelFrame(court_box, text="二楼（12个场地）", padding=5); floor2.pack(fill="x")
         for n, x in enumerate(court_options):
             var = tk.BooleanVar(value=False); self.court_vars[x] = var
-            ttk.Checkbutton(court_box, text=x, variable=var).grid(row=n // 3, column=n % 3, sticky="w", padx=3)
+            parent = floor1 if n < 8 else floor2
+            j = n if n < 8 else n - 8
+            ttk.Checkbutton(parent, text=x, variable=var).grid(row=j // 3, column=j % 3, sticky="w", padx=3)
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
         ttk.Label(row, text="刷新间隔（秒）").pack(side="left")
         self.interval = ttk.Entry(row, width=8); self.interval.insert(0, "1"); self.interval.pack(side="left", padx=8)
