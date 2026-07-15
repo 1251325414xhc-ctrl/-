@@ -16,16 +16,41 @@ class BookingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("江苏大学羽毛球自动预约场地助手")
-        self.root.geometry("760x680")
-        self.root.minsize(700, 620)
+        self.root.geometry("820x760")
+        self.root.minsize(740, 640)
+        self.root.configure(background="#f3f6fb")
         style = ttk.Style()
         try: style.theme_use("clam")
         except tk.TclError: pass
-        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 18, "bold"), foreground="#173f5f")
-        style.configure("Hint.TLabel", font=("Microsoft YaHei UI", 9), foreground="#9a5b00")
-        style.configure("Section.TLabelframe", padding=10)
-        style.configure("Section.TLabelframe.Label", font=("Microsoft YaHei UI", 11, "bold"), foreground="#20639b")
-        style.configure("Accent.TButton", font=("Microsoft YaHei UI", 10, "bold"), foreground="white", background="#20639b", padding=8)
+        style.configure(".", font=("Microsoft YaHei UI", 10), background="#f3f6fb", foreground="#172033")
+        style.configure("Page.TFrame", background="#f3f6fb")
+        style.configure("Header.TFrame", background="#102a43")
+        style.configure("HeaderTitle.TLabel", background="#102a43", foreground="#ffffff",
+                        font=("Microsoft YaHei UI", 21, "bold"))
+        style.configure("HeaderSub.TLabel", background="#102a43", foreground="#b9d6ee",
+                        font=("Microsoft YaHei UI", 9))
+        style.configure("Card.TFrame", background="#ffffff")
+        style.configure("Card.TLabelframe", background="#ffffff", bordercolor="#dce5ef",
+                        lightcolor="#dce5ef", darkcolor="#dce5ef", relief="solid", borderwidth=1, padding=14)
+        style.configure("Card.TLabelframe.Label", background="#ffffff", foreground="#1f4e79",
+                        font=("Microsoft YaHei UI", 11, "bold"))
+        style.configure("Subcard.TLabelframe", background="#f8fafc", bordercolor="#e3eaf2", padding=8)
+        style.configure("Subcard.TLabelframe.Label", background="#f8fafc", foreground="#52677a",
+                        font=("Microsoft YaHei UI", 9, "bold"))
+        style.configure("Card.TLabel", background="#ffffff", foreground="#354a5f")
+        style.configure("Field.TLabel", background="#ffffff", foreground="#23384d",
+                        font=("Microsoft YaHei UI", 10, "bold"))
+        style.configure("Hint.TLabel", background="#fff7e8", foreground="#9a5b00", padding=(10, 7))
+        style.configure("TCheckbutton", background="#ffffff", foreground="#30475e", padding=3)
+        style.map("TCheckbutton", background=[("active", "#ffffff")], foreground=[("active", "#0f6cbd")])
+        style.configure("TEntry", fieldbackground="#ffffff", bordercolor="#cbd8e6", padding=6)
+        style.configure("TCombobox", fieldbackground="#ffffff", bordercolor="#cbd8e6", padding=6)
+        style.configure("Primary.TButton", font=("Microsoft YaHei UI", 10, "bold"),
+                        foreground="#ffffff", background="#0f6cbd", borderwidth=0, padding=(16, 10))
+        style.map("Primary.TButton", background=[("active", "#0b5ca3"), ("disabled", "#9fb6ca")])
+        style.configure("Secondary.TButton", foreground="#1f4e79", background="#eaf2f8",
+                        bordercolor="#c9dbea", padding=(14, 9))
+        style.map("Secondary.TButton", background=[("active", "#dcebf6")])
         self.loop = asyncio.new_event_loop()
         self.browser = self.page = None
         self._slot_cache = {}
@@ -37,61 +62,78 @@ class BookingApp:
         self.loop.run_forever()
 
     def _ui(self):
-        shell = ttk.Frame(self.root); shell.pack(fill="both", expand=True)
-        canvas = tk.Canvas(shell, highlightthickness=0, background="#ffffff")
+        shell = ttk.Frame(self.root, style="Page.TFrame"); shell.pack(fill="both", expand=True)
+        canvas = tk.Canvas(shell, highlightthickness=0, background="#f3f6fb")
         scrollbar = ttk.Scrollbar(shell, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y"); canvas.pack(side="left", fill="both", expand=True)
-        frm = ttk.Frame(canvas, padding=18)
+        frm = ttk.Frame(canvas, padding=22, style="Page.TFrame")
         canvas_window = canvas.create_window((0, 0), window=frm, anchor="nw")
         frm.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda e: canvas.itemconfigure(canvas_window, width=e.width))
         canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
-        ttk.Label(frm, text="江苏大学羽毛球自动预约场地助手", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frm, text="手动登录 · 多时段选择 · 分楼层场地优先级", foreground="#557080").pack(anchor="w", pady=(2, 12))
-        login = ttk.LabelFrame(frm, text="第一步：登录预约系统", style="Section.TLabelframe"); login.pack(fill="x", pady=(0, 10))
-        ttk.Label(login, text="点击后将在浏览器打开预约页面，请完成登录。", foreground="#557080").pack(side="left")
-        ttk.Button(login, text="打开预约页面", command=self.open_page, style="Accent.TButton").pack(side="right")
-        ttk.Label(frm, text="提示：场地每天 12:00 开放预约，提前启动会自动等待。", style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
-        booking = ttk.LabelFrame(frm, text="第二步：选择预约条件", style="Section.TLabelframe"); booking.pack(fill="x", pady=(0, 10))
-        row = ttk.Frame(booking); row.pack(fill="x", pady=4)
-        ttk.Label(row, text="预约日期", width=12).pack(side="left")
+        header = ttk.Frame(frm, style="Header.TFrame", padding=(22, 18))
+        header.pack(fill="x", pady=(0, 14))
+        ttk.Label(header, text="羽毛球场地预约助手", style="HeaderTitle.TLabel").pack(anchor="w")
+        ttk.Label(header, text="JIANGSU UNIVERSITY  ·  SMART BOOKING CONSOLE",
+                  style="HeaderSub.TLabel").pack(anchor="w", pady=(4, 0))
+        login = ttk.LabelFrame(frm, text="01  登录预约系统", style="Card.TLabelframe")
+        login.pack(fill="x", pady=(0, 12))
+        ttk.Label(login, text="打开预约页面并完成登录，浏览器会安全保留本地登录状态。",
+                  style="Card.TLabel").pack(side="left")
+        ttk.Button(login, text="打开预约页面  →", command=self.open_page,
+                   style="Primary.TButton").pack(side="right")
+        ttk.Label(frm, text="  每天 11:59 开始匹配场地；提前启动后，程序会自动等待开始时间。",
+                  style="Hint.TLabel").pack(fill="x", pady=(0, 12))
+        booking = ttk.LabelFrame(frm, text="02  设置预约条件", style="Card.TLabelframe")
+        booking.pack(fill="x", pady=(0, 12))
+        row = ttk.Frame(booking, style="Card.TFrame"); row.pack(fill="x", pady=6)
+        ttk.Label(row, text="预约日期", width=14, style="Field.TLabel").pack(side="left")
         dates = [(date.today() + timedelta(days=i)).isoformat() for i in range(90)]
         self.date = ttk.Combobox(row, values=dates, state="readonly", width=16)
-        self.date.current(1); self.date.pack(side="left", padx=8)
-        row = ttk.Frame(booking); row.pack(fill="x", pady=4)
-        ttk.Label(row, text="时间段（可多选）", width=12).pack(side="left", anchor="n")
+        self.date.current(0); self.date.pack(side="left", padx=8)
+        row = ttk.Frame(booking, style="Card.TFrame"); row.pack(fill="x", pady=6)
+        ttk.Label(row, text="时间段（可多选）", width=14, style="Field.TLabel").pack(side="left", anchor="n")
         time_options = [f"{h:02d}:00-{h+1:02d}:00" for h in range(14, 21)]
         self.time_vars = {}
-        time_box = ttk.LabelFrame(row, text="选择一个或多个预约时段", padding=6); time_box.pack(side="left", padx=8, fill="x", expand=True)
+        time_box = ttk.LabelFrame(row, text="选择一个或多个预约时段", style="Subcard.TLabelframe")
+        time_box.pack(side="left", padx=8, fill="x", expand=True)
         for n, x in enumerate(time_options):
             var = tk.BooleanVar(value=False); self.time_vars[x] = var
             ttk.Checkbutton(time_box, text=x, variable=var).grid(row=n // 4, column=n % 4, sticky="w", padx=3)
-        row = ttk.Frame(booking); row.pack(fill="x", pady=4)
-        ttk.Label(row, text="场地优先级（可多选）", width=12).pack(side="left", anchor="n")
+        row = ttk.Frame(booking, style="Card.TFrame"); row.pack(fill="x", pady=6)
+        ttk.Label(row, text="场地优先级", width=14, style="Field.TLabel").pack(side="left", anchor="n")
         court_options = ["一楼塑胶1", "一楼塑胶2", "一楼塑胶3", "一楼木质4", "一楼塑胶5", "一楼塑胶6", "一楼塑胶7", "一楼木质8"] + [f"二楼塑胶{i}" for i in range(1, 13)]
         self.court_vars = {}
-        court_box = ttk.Frame(row); court_box.pack(side="left", padx=8, fill="x", expand=True)
-        floor1 = ttk.LabelFrame(court_box, text="一楼（8个场地）", padding=5); floor1.pack(fill="x", pady=(0, 5))
-        floor2 = ttk.LabelFrame(court_box, text="二楼（12个场地）", padding=5); floor2.pack(fill="x")
+        court_box = ttk.Frame(row, style="Card.TFrame"); court_box.pack(side="left", padx=8, fill="x", expand=True)
+        floor1 = ttk.LabelFrame(court_box, text="一楼 · 8 个场地", style="Subcard.TLabelframe")
+        floor1.pack(fill="x", pady=(0, 7))
+        floor2 = ttk.LabelFrame(court_box, text="二楼 · 12 个场地", style="Subcard.TLabelframe")
+        floor2.pack(fill="x")
         for n, x in enumerate(court_options):
             var = tk.BooleanVar(value=False); self.court_vars[x] = var
             parent = floor1 if n < 8 else floor2
             j = n if n < 8 else n - 8
             ttk.Checkbutton(parent, text=x, variable=var).grid(row=j // 3, column=j % 3, sticky="w", padx=3)
-        row = ttk.Frame(booking); row.pack(fill="x", pady=4)
-        ttk.Label(row, text="刷新间隔（秒）").pack(side="left")
+        row = ttk.Frame(booking, style="Card.TFrame"); row.pack(fill="x", pady=6)
+        ttk.Label(row, text="刷新间隔（秒）", width=14, style="Field.TLabel").pack(side="left")
         self.interval = ttk.Entry(row, width=8); self.interval.insert(0, "1"); self.interval.pack(side="left", padx=8)
-        self.start_btn = ttk.Button(frm, text="开始监控并自动选择", command=self.start, style="Accent.TButton")
-        self.start_btn.pack(fill="x", pady=(2, 12))
-        ttk.Button(frm, text="已在浏览器选好场地，继续进入付款", command=self.continue_payment).pack(fill="x", pady=(0, 10))
-        log_frame = ttk.LabelFrame(frm, text="运行日志", style="Section.TLabelframe"); log_frame.pack(fill="both", expand=True)
-        self.log = tk.Text(log_frame, height=10, state="disabled", bg="#f7fafc", fg="#263238", relief="flat", font=("Consolas", 9)); self.log.pack(fill="both", expand=True)
-        self.log.tag_configure("system", foreground="#455a64")
-        self.log.tag_configure("wait", foreground="#9a6700")
-        self.log.tag_configure("success", foreground="#16803c")
-        self.log.tag_configure("error", foreground="#c62828")
-        self.log.tag_configure("action", foreground="#1565c0")
+        self.start_btn = ttk.Button(frm, text="开始智能监控并自动选择场地", command=self.start,
+                                    style="Primary.TButton")
+        self.start_btn.pack(fill="x", pady=(2, 9))
+        ttk.Button(frm, text="已手动选好场地，继续进入付款", command=self.continue_payment,
+                   style="Secondary.TButton").pack(fill="x", pady=(0, 12))
+        log_frame = ttk.LabelFrame(frm, text="03  实时运行日志", style="Card.TLabelframe")
+        log_frame.pack(fill="both", expand=True)
+        self.log = tk.Text(log_frame, height=11, state="disabled", bg="#0f1f2e", fg="#d7e5f0",
+                           insertbackground="#ffffff", selectbackground="#234e70", relief="flat",
+                           padx=12, pady=10, font=("Cascadia Mono", 9), spacing1=2, spacing3=2)
+        self.log.pack(fill="both", expand=True)
+        self.log.tag_configure("system", foreground="#a9bfd1")
+        self.log.tag_configure("wait", foreground="#f6c85f")
+        self.log.tag_configure("success", foreground="#63d297")
+        self.log.tag_configure("error", foreground="#ff7b7b")
+        self.log.tag_configure("action", foreground="#68b5f8")
 
     def write(self, msg):
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -113,6 +155,19 @@ class BookingApp:
     def open_page(self):
         self.submit(self._open())
 
+    async def _scroll_to_page_bottom(self, attempts=6):
+        """等待异步内容渲染，并将窗口及页面主滚动容器移到底部。"""
+        for _ in range(attempts):
+            await self.page.evaluate("""() => {
+              window.scrollTo({top: document.documentElement.scrollHeight, behavior: 'auto'});
+              for (const el of document.querySelectorAll('*')) {
+                if (el.scrollHeight > el.clientHeight + 20) {
+                  el.scrollTop = el.scrollHeight;
+                }
+              }
+            }""")
+            await self.page.wait_for_timeout(250)
+
     async def _open(self):
         if not self.browser:
             self.pw = await async_playwright().start()
@@ -122,6 +177,7 @@ class BookingApp:
         await self.page.goto(BASE_URL, wait_until="domcontentloaded")
         await self.page.evaluate("route => { window.location.hash = route; }", ROUTE)
         await self.page.wait_for_timeout(1200)
+        await self._scroll_to_page_bottom()
         self.write("页面已打开，请在浏览器中完成登录；登录状态会保存在 browser_profile。")
 
     def start(self):
@@ -156,12 +212,12 @@ class BookingApp:
     async def _monitor(self, date, times, courts, interval):
         self.write(f"开始监控：{date} / {times} / 场地 {courts}")
         now = datetime.now()
-        opening = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        opening = now.replace(hour=11, minute=59, second=0, microsecond=0)
         if now < opening:
             wait_seconds = (opening - now).total_seconds()
-            self.write(f"预约每天 12:00 开放，正在等待 {int(wait_seconds // 60)} 分钟后开始监控。")
+            self.write(f"预约每天 11:59 开始匹配，正在等待 {int(wait_seconds // 60)} 分钟后开始监控。")
             await asyncio.sleep(wait_seconds)
-            self.write("已到 12:00，开始监控可用场地。")
+            self.write("已到 11:59，开始匹配可用场地。")
         first_round = True
         round_no = 0
         while True:
@@ -175,6 +231,8 @@ class BookingApp:
                     await self._click_text_variants(["刷新", "重新加载"], 120)
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
                 await self.page.wait_for_timeout(220)
+                # 每次刷新后重新滚动到底部，避免异步重绘改变页面位置。
+                await self._scroll_to_page_bottom(attempts=3)
                 if round_no % 5 == 1:
                     self.write(f"第 {round_no} 轮检查可用场地……")
                 body_text = await self.page.locator("body").inner_text()
@@ -212,30 +270,75 @@ class BookingApp:
                 continue
         return False
 
-    async def _click_court_slot(self, court_label, time_label):
-        """按截图中的表格布局，点击场地行与时间列的交叉单元格。"""
+    async def _selected_slot_count(self):
+        """读取页面在场地真正选中后显示的场次数量。"""
         try:
+            return await self.page.evaluate(r"""() => {
+              let count = 0;
+              for (const el of document.querySelectorAll('*')) {
+                const text = (el.innerText || '').replace(/\s+/g, '');
+                const match = text.match(/已选定(\d+)个场次/);
+                if (match) count = Math.max(count, Number(match[1]));
+              }
+              return count;
+            }""")
+        except Exception:
+            return 0
+
+    async def _click_slot_at(self, x, y, previous_count):
+        """点击候选单元格，仅在页面确认选中后返回成功。"""
+        try:
+            selectable = await self.page.evaluate(r"""({x, y}) => {
+              const el = document.elementFromPoint(x, y);
+              if (!el) return false;
+              const text = (el.innerText || '').replace(/\s+/g, '');
+              const cls = String(el.className || '').toLowerCase();
+              return !/已约|不可预约|已满|售罄/.test(text) &&
+                     !/(disabled|unavailable|occupied)/.test(cls);
+            }""", {"x": x, "y": y})
+            if not selectable:
+                return False
+            await self.page.mouse.click(x, y)
+            for _ in range(8):
+                await self.page.wait_for_timeout(150)
+                if await self._selected_slot_count() > previous_count:
+                    return True
+        except Exception as e:
+            self.write(f"场地点击确认失败：{e}")
+        return False
+
+    async def _click_court_slot(self, court_label, time_label):
+        """点击场地行与时间列的交叉单元格，并确认页面真的选中。"""
+        try:
+            previous_count = await self._selected_slot_count()
+            if previous_count:
+                return True
             key = (court_label, time_label)
             row_xy = self._slot_cache.get(("__label__", court_label))
             col_xy = self._slot_cache.get(("__label__", time_label))
             if row_xy and col_xy:
-                await self.page.mouse.click(col_xy[0], row_xy[1])
-                return True
+                if await self._click_slot_at(col_xy[0], row_xy[1], previous_count):
+                    return True
+                self._slot_cache.pop(("__label__", court_label), None)
+                self._slot_cache.pop(("__label__", time_label), None)
+                self._slot_cache.pop(key, None)
             if key in self._slot_cache:
                 x, y = self._slot_cache[key]
-                await self.page.mouse.click(x, y)
-                return True
+                if await self._click_slot_at(x, y, previous_count):
+                    return True
+                self._slot_cache.pop(key, None)
             row = self.page.get_by_text(court_label, exact=True).first
             col = self.page.get_by_text(time_label, exact=True).first
             if not await row.count() or not await col.count():
-                return await self._click_text_variants([court_label], 120)
+                return False
             rb, cb = await row.bounding_box(), await col.bounding_box()
             if rb and cb:
                 x = cb["x"] + cb["width"] / 2
                 y = rb["y"] + rb["height"] / 2
                 self._slot_cache[key] = (x, y)
-                await self.page.mouse.click(x, y)
-                return True
+                if await self._click_slot_at(x, y, previous_count):
+                    return True
+            self.write(f"场地 {court_label} / {time_label} 点击后未出现选定状态")
         except Exception as e:
             self.write(f"表格交叉点点击失败：{e}")
         return False
@@ -257,6 +360,8 @@ class BookingApp:
                 if len(found) >= 2:
                     break
                 await asyncio.sleep(0.12)
+            # 页面刷新或异步重绘后，旧坐标不再可信。
+            self._slot_cache.clear()
             for k, v in found.items():
                 self._slot_cache[("__label__", k)] = (v["x"], v["y"])
             if found:
