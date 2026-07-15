@@ -37,7 +37,16 @@ class BookingApp:
         self.loop.run_forever()
 
     def _ui(self):
-        frm = ttk.Frame(self.root, padding=18); frm.pack(fill="both", expand=True)
+        shell = ttk.Frame(self.root); shell.pack(fill="both", expand=True)
+        canvas = tk.Canvas(shell, highlightthickness=0, background="#ffffff")
+        scrollbar = ttk.Scrollbar(shell, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y"); canvas.pack(side="left", fill="both", expand=True)
+        frm = ttk.Frame(canvas, padding=18)
+        canvas_window = canvas.create_window((0, 0), window=frm, anchor="nw")
+        frm.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(canvas_window, width=e.width))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
         ttk.Label(frm, text="江苏大学羽毛球自动预约场地助手", style="Title.TLabel").pack(anchor="w")
         ttk.Label(frm, text="手动登录 · 多时段选择 · 分楼层场地优先级", foreground="#557080").pack(anchor="w", pady=(2, 12))
         login = ttk.LabelFrame(frm, text="第一步：登录预约系统", style="Section.TLabelframe"); login.pack(fill="x", pady=(0, 10))
