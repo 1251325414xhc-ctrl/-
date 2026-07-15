@@ -277,7 +277,7 @@ class BookingApp:
 
     async def _go_payment_page(self):
         """尝试推进到订单/付款页面，但不执行支付。"""
-        labels = ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "立即预订", "预约", "预订", "下一步", "确认提交", "去支付", "支付"]
+        labels = ["请选择场地并提交", "场地并提交", "请提交", "提交订单", "立即预约", "立即预订", "预约", "预订", "下一步", "确认提交", "去支付", "支付"]
         # 先尝试常规文本定位，兼容 uni-app 中文字包在多层 view 的情况。
         for label in labels:
             try:
@@ -311,7 +311,7 @@ class BookingApp:
             # uni-app 底部固定按钮可能是 div/view，直接触发其最近可点击父节点。
             try:
                 clicked = await self.page.evaluate("""() => {
-                  const keys=['请选择场地并提交','场地并提交','提交订单','立即预约','确认提交'];
+                  const keys=['请选择场地并提交','场地并提交','请提交','提交订单','立即预约','确认提交'];
                   for (const el of document.querySelectorAll('*')) {
                     const t=(el.innerText||'').replace(/\\s+/g,'').trim();
                     if (keys.some(k=>t.includes(k)) && el.getBoundingClientRect().width>100) {
@@ -345,7 +345,7 @@ class BookingApp:
                     return
             except Exception:
                 pass
-            for label in ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "确认提交"]:
+            for label in ["请选择场地并提交", "场地并提交", "请提交", "提交订单", "立即预约", "确认提交"]:
                 try:
                     button = self.page.get_by_text(label, exact=False).first
                     if await button.count() and await button.is_visible():
