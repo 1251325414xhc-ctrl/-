@@ -329,6 +329,22 @@ class BookingApp:
                     return
             except Exception:
                 pass
+            try:
+                clicked = await self.page.evaluate("""() => {
+                  const h=innerHeight;
+                  for (const el of document.querySelectorAll('*')) {
+                    const r=el.getBoundingClientRect(), t=(el.innerText||'').replace(/\\s+/g,'');
+                    if (r.width>300 && r.height>35 && r.bottom>h-130 && r.bottom<=h+20 && (t.includes('提交')||t.includes('预约'))) { el.click(); return t; }
+                  }
+                  return '';
+                }""")
+                if clicked:
+                    self.write(f"已触发底部提交按钮“{clicked[:20]}”，正在进入付款页面……")
+                    await self.page.wait_for_timeout(700)
+                    await self._go_payment_page()
+                    return
+            except Exception:
+                pass
             for label in ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "确认提交"]:
                 try:
                     button = self.page.get_by_text(label, exact=False).first
