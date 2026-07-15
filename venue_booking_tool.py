@@ -28,6 +28,7 @@ class BookingApp:
         style.configure("Accent.TButton", font=("Microsoft YaHei UI", 10, "bold"), foreground="white", background="#20639b", padding=8)
         self.loop = asyncio.new_event_loop()
         self.browser = self.page = None
+        self._slot_cache = {}
         threading.Thread(target=self._run_loop, daemon=True).start()
         self._ui()
 
@@ -160,7 +161,7 @@ class BookingApp:
                     # 页面提供“刷新”文本时只刷新预约表，避免完整 reload 破坏日历状态。
                     await self._click_text_variants(["刷新", "重新加载"], 500)
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
-                await self.page.wait_for_timeout(800)
+                await self.page.wait_for_timeout(180)
                 if round_no % 5 == 1:
                     self.write(f"第 {round_no} 轮检查可用场地……")
                 body_text = await self.page.locator("body").inner_text()
@@ -200,13 +201,21 @@ class BookingApp:
     async def _click_court_slot(self, court_label, time_label):
         """按截图中的表格布局，点击场地行与时间列的交叉单元格。"""
         try:
+            key = (court_label, time_label)
+            if key in self._slot_cache:
+                x, y = self._slot_cache[key]
+                await self.page.mouse.click(x, y)
+                return True
             row = self.page.get_by_text(court_label, exact=True).first
             col = self.page.get_by_text(time_label, exact=True).first
             if not await row.count() or not await col.count():
                 return await self._click_text_variants([court_label], 600)
             rb, cb = await row.bounding_box(), await col.bounding_box()
             if rb and cb:
-                await self.page.mouse.click(cb["x"] + cb["width"] / 2, rb["y"] + rb["height"] / 2)
+                x = cb["x"] + cb["width"] / 2
+                y = rb["y"] + rb["height"] / 2
+                self._slot_cache[key] = (x, y)
+                await self.page.mouse.click(x, y)
                 return True
         except Exception as e:
             self.write(f"表格交叉点点击失败：{e}")
