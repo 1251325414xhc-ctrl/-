@@ -212,12 +212,19 @@ class BookingApp:
     async def _monitor(self, date, times, courts, interval):
         self.write(f"开始监控：{date} / {times} / 场地 {courts}")
         now = datetime.now()
-        opening = now.replace(hour=11, minute=59, second=0, microsecond=0)
+        try:
+            target_day = datetime.strptime(date, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            target_day = now
+        opening = target_day.replace(hour=11, minute=59, second=0, microsecond=0)
         if now < opening:
             wait_seconds = (opening - now).total_seconds()
-            self.write(f"预约每天 11:59 开始匹配，正在等待 {int(wait_seconds // 60)} 分钟后开始监控。")
+            self.write(
+                f"将在预约日期 {opening:%Y-%m-%d} 11:59 开始匹配，"
+                f"还需等待 {int(wait_seconds // 60)} 分钟。"
+            )
             await asyncio.sleep(wait_seconds)
-            self.write("已到 11:59，开始匹配可用场地。")
+            self.write(f"已到 {opening:%Y-%m-%d %H:%M}，开始匹配可用场地。")
         first_round = True
         round_no = 0
         while True:
