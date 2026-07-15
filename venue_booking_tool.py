@@ -70,6 +70,7 @@ class BookingApp:
         self.interval = ttk.Entry(row, width=8); self.interval.insert(0, "3"); self.interval.pack(side="left", padx=8)
         self.start_btn = ttk.Button(frm, text="开始监控并自动选择", command=self.start, style="Accent.TButton")
         self.start_btn.pack(fill="x", pady=(2, 12))
+        ttk.Button(frm, text="已在浏览器选好场地，继续进入付款", command=self.continue_payment).pack(fill="x", pady=(0, 10))
         log_frame = ttk.LabelFrame(frm, text="运行日志", style="Section.TLabelframe"); log_frame.pack(fill="both", expand=True)
         self.log = tk.Text(log_frame, height=10, state="disabled", bg="#f7fafc", fg="#263238", relief="flat", font=("Consolas", 9)); self.log.pack(fill="both", expand=True)
         self.log.tag_configure("system", foreground="#455a64")
@@ -121,6 +122,14 @@ class BookingApp:
         self.write("已点击开始监控，正在准备预约页面……")
         self.start_btn.configure(state="disabled", text="监控进行中…")
         future = self.submit(self._monitor(self.date.get().strip(), times, courts, float(self.interval.get() or 3)))
+        future.add_done_callback(self._monitor_done)
+
+    def continue_payment(self):
+        if not self.page:
+            messagebox.showwarning("提示", "请先打开预约页面并登录")
+            return
+        self.write("正在尝试从当前浏览器页面进入付款流程……")
+        future = self.submit(self._go_payment_page())
         future.add_done_callback(self._monitor_done)
 
     def _monitor_done(self, future):
