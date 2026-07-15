@@ -177,7 +177,7 @@ class BookingApp:
                             floor, number = c.split()
                             variants = [c, c.replace(" ", ""), f"{floor}{number}", number, number.replace("号场", "")]
                             if await self._click_text_variants(variants, 800):
-                                self.write(f"已选择场地 {c}，请在浏览器中检查并完成验证码/最终提交。")
+                                self.write(f"已点击场地 {c}，正在查找“请选择场地并提交”按钮……")
                                 await self._go_payment_page()
                                 return
                 if self.page.url and await self.page.locator("body").count():
@@ -221,7 +221,7 @@ class BookingApp:
 
     async def _go_payment_page(self):
         """尝试推进到订单/付款页面，但不执行支付。"""
-        labels = ["提交订单", "立即预约", "立即预订", "预约", "预订", "下一步", "确认提交", "去支付", "支付"]
+        labels = ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "立即预订", "预约", "预订", "下一步", "确认提交", "去支付", "支付"]
         # 先尝试常规文本定位，兼容 uni-app 中文字包在多层 view 的情况。
         for label in labels:
             try:
