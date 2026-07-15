@@ -67,7 +67,7 @@ class BookingApp:
             ttk.Checkbutton(court_box, text=x, variable=var).grid(row=n // 3, column=n % 3, sticky="w", padx=3)
         row = ttk.Frame(booking); row.pack(fill="x", pady=4)
         ttk.Label(row, text="刷新间隔（秒）").pack(side="left")
-        self.interval = ttk.Entry(row, width=8); self.interval.insert(0, "3"); self.interval.pack(side="left", padx=8)
+        self.interval = ttk.Entry(row, width=8); self.interval.insert(0, "1"); self.interval.pack(side="left", padx=8)
         self.start_btn = ttk.Button(frm, text="开始监控并自动选择", command=self.start, style="Accent.TButton")
         self.start_btn.pack(fill="x", pady=(2, 12))
         ttk.Button(frm, text="已在浏览器选好场地，继续进入付款", command=self.continue_payment).pack(fill="x", pady=(0, 10))
@@ -148,11 +148,21 @@ class BookingApp:
             self.write(f"预约每天 12:00 开放，正在等待 {int(wait_seconds // 60)} 分钟后开始监控。")
             await asyncio.sleep(wait_seconds)
             self.write("已到 12:00，开始监控可用场地。")
+        first_round = True
+        round_no = 0
         while True:
             try:
-                await self.page.reload(wait_until="domcontentloaded")
+                round_no += 1
+                if first_round:
+                    await self.page.reload(wait_until="domcontentloaded")
+                    first_round = False
+                else:
+                    # 页面提供“刷新”文本时只刷新预约表，避免完整 reload 破坏日历状态。
+                    await self._click_text_variants(["刷新", "重新加载"], 500)
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
                 await self.page.wait_for_timeout(800)
+                if round_no % 5 == 1:
+                    self.write(f"第 {round_no} 轮检查可用场地……")
                 body_text = await self.page.locator("body").inner_text()
                 if "登录状态已过期" in body_text or "请先登录" in body_text:
                     self.write("登录状态已过期，请在浏览器弹窗中点击“确定”并重新登录，然后再开始监控。")
