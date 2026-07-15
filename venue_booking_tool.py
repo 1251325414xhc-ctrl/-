@@ -145,21 +145,36 @@ class BookingApp:
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
                 await self.page.wait_for_timeout(800)
                 if date:
-                    await self.page.get_by_text(date, exact=False).first.click(timeout=800)
+                    await self._click_text_variants([date, date.replace("-", "/")], 800)
                 for t in times:
-                    loc = self.page.get_by_text(t, exact=False).first
-                    if await loc.count() and await loc.is_visible():
-                        await loc.click(); self.write(f"已选择时间段 {t}")
+                    t_start = t.split("-")[0]
+                    if await self._click_text_variants([t, t_start], 800):
+                        self.write(f"已选择时间段 {t}")
                         for c in courts:
-                            cl = self.page.get_by_text(c, exact=True).first
-                            if await cl.count() and await cl.is_visible():
-                                await cl.click(); self.write(f"已选择场地 {c}，请在浏览器中检查并完成验证码/最终提交。")
+                            floor, number = c.split()
+                            variants = [c, c.replace(" ", ""), f"{floor}{number}", number, number.replace("号场", "")]
+                            if await self._click_text_variants(variants, 800):
+                                self.write(f"已选择场地 {c}，请在浏览器中检查并完成验证码/最终提交。")
                                 await self._go_payment_page()
                                 return
+                if self.page.url and await self.page.locator("body").count():
+                    body = (await self.page.locator("body").inner_text())[:180].replace("\n", " | ")
+                    self.write(f"页面未匹配到场地，当前页面：{body}")
                 await asyncio.sleep(interval)
             except Exception as e:
                 self.write(f"本轮未找到可用场地：{e}")
                 await asyncio.sleep(interval)
+
+    async def _click_text_variants(self, variants, timeout=800):
+        for text in variants:
+            try:
+                loc = self.page.get_by_text(text, exact=False).first
+                if await loc.count() and await loc.is_visible():
+                    await loc.click(timeout=timeout)
+                    return True
+            except Exception:
+                continue
+        return False
 
     async def _go_payment_page(self):
         """尝试推进到订单/付款页面，但不执行支付。"""
