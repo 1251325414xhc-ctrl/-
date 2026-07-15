@@ -165,7 +165,7 @@ class BookingApp:
                     # 页面提供“刷新”文本时只刷新预约表，避免完整 reload 破坏日历状态。
                     await self._click_text_variants(["刷新", "重新加载"], 120)
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
-                await self.page.wait_for_timeout(80)
+                await self.page.wait_for_timeout(220)
                 if round_no % 5 == 1:
                     self.write(f"第 {round_no} 轮检查可用场地……")
                 body_text = await self.page.locator("body").inner_text()
@@ -235,16 +235,23 @@ class BookingApp:
         """一次性扫描页面文本节点，缓存时间列和场地行坐标。"""
         try:
             labels = list(dict.fromkeys(times + courts))
-            found = await self.page.evaluate("""labels => {
+            found = {}
+            for _ in range(6):
+                found = await self.page.evaluate("""labels => {
               const out = {};
               for (const el of document.querySelectorAll('*')) {
                 const t = (el.innerText || '').trim();
                 if (labels.includes(t)) { const r = el.getBoundingClientRect(); if (r.width && r.height) out[t] = {x:r.x+r.width/2,y:r.y+r.height/2}; }
               }
               return out;
-            }""", labels)
+                }""", labels)
+                if len(found) >= 2:
+                    break
+                await asyncio.sleep(0.12)
             for k, v in found.items():
                 self._slot_cache[("__label__", k)] = (v["x"], v["y"])
+            if found:
+                self.write(f"已加载预约表坐标：{len(found)} 个")
         except Exception:
             pass
 
