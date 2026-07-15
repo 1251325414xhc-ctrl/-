@@ -176,7 +176,7 @@ class BookingApp:
                         for c in courts:
                             if await self._click_court_slot(c, t):
                                 self.write(f"已点击场地 {c}，正在查找“请选择场地并提交”按钮……")
-                                await self._go_payment_page()
+                                await self._submit_selected_court()
                                 return
                 if self.page.url and await self.page.locator("body").count():
                     body = (await self.page.locator("body").inner_text())[:180].replace("\n", " | ")
@@ -261,5 +261,22 @@ class BookingApp:
         except Exception:
             pass
         self.write("已选中场地，但未找到自动进入付款页面的按钮，请在浏览器中点击预约或提交订单。")
+
+    async def _submit_selected_court(self):
+        """等待底部提交按钮更新后自动点击。"""
+        for _ in range(12):
+            for label in ["请选择场地并提交", "场地并提交", "提交订单", "立即预约", "确认提交"]:
+                try:
+                    button = self.page.get_by_text(label, exact=False).first
+                    if await button.count() and await button.is_visible():
+                        await button.click()
+                        self.write(f"已自动点击“{label}”，正在进入付款页面……")
+                        await self.page.wait_for_timeout(800)
+                        await self._go_payment_page()
+                        return
+                except Exception:
+                    continue
+            await asyncio.sleep(0.25)
+        self.write("场地已点击，但提交按钮未在规定时间内出现。")
 if __name__ == "__main__":
     root = tk.Tk(); BookingApp(root); root.mainloop()
