@@ -163,9 +163,9 @@ class BookingApp:
                     first_round = False
                 else:
                     # 页面提供“刷新”文本时只刷新预约表，避免完整 reload 破坏日历状态。
-                    await self._click_text_variants(["刷新", "重新加载"], 500)
+                    await self._click_text_variants(["刷新", "重新加载"], 120)
                 # Vue/小程序页面通常把可选项渲染为按钮或文本；按可见文本优先匹配。
-                await self.page.wait_for_timeout(180)
+                await self.page.wait_for_timeout(80)
                 if round_no % 5 == 1:
                     self.write(f"第 {round_no} 轮检查可用场地……")
                 body_text = await self.page.locator("body").inner_text()
@@ -176,7 +176,7 @@ class BookingApp:
                     await self._select_calendar_date(date)
                 for t in times:
                     t_start = t.split("-")[0]
-                    if await self._click_text_variants([t, t_start], 800):
+                    if await self._click_text_variants([t, t_start], 120):
                         self.write(f"已选择时间段 {t}")
                         for c in courts:
                             if await self._click_court_slot(c, t):
@@ -213,7 +213,7 @@ class BookingApp:
             row = self.page.get_by_text(court_label, exact=True).first
             col = self.page.get_by_text(time_label, exact=True).first
             if not await row.count() or not await col.count():
-                return await self._click_text_variants([court_label], 600)
+                return await self._click_text_variants([court_label], 120)
             rb, cb = await row.bounding_box(), await col.bounding_box()
             if rb and cb:
                 x = cb["x"] + cb["width"] / 2
