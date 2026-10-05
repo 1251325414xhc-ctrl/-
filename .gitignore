@@ -1,5 +1,22 @@
 browser_profile/
+ms-playwright/
 __pycache__/
 *.pyc
 *.lnk
 outputs/
+
+# PyInstaller 打包产物
+build/
+build-v2/
+dist/
+dist-v2/
+installer/
+*.spec
+_internal/
+*.exe
+
+# 旧版备份
+*.bak
+*.bak-*
+*.prev-*
+*_旧版备份_*
