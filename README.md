@@ -25,4 +25,4 @@ py venue_booking_tool.py
 
 ## 依赖说明
 
-界面为 PySide6（含 Windows 亚克力毛玻璃效果），浏览器自动化为 Playwright。`browser_profile/` 存放登录态，请勿提交到版本库。
+界面为 PySide6（含 Windows 亚克力效果），浏览器自动化为 Playwright。`browser_profile/` 存放登录态，请勿提交到版本库。
