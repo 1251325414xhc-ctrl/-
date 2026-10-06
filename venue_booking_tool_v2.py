@@ -137,6 +137,15 @@ VENUE_GROUPS = [
 # ---------------------------------------------------------------------------
 MAX_PER_ORDER = 2
 
+# 跨时段挑选（CHANG 2026-10-06 明确要求）：
+# 「场地筛选不对同一时间段的场地进行选择，而是要保证有两个不同时间段的场地」。
+# 打开后，单次提交的这 2 个单元**从不同时段轮流取**：
+#   第 1 轮每个时段各取 1 个（时段按界面勾选顺序，时段内仍按场地清单顺序），
+#   还不够才轮第 2 轮回头补 —— 于是"两个时段都有货"时，交上去的必定是 1+1；
+# 只有某个时段一片都没货时才会退回"同时段 2 个"（有几个抢先几个，绝不空手）。
+# 设成 False 就退回旧行为：死板地按池子顺序取前 2 个（可能都在同一时段）。
+CROSS_SLOT_PICK = True
+
 # 凑数宽限（秒）：第一次发现"可约数不够 MAX_PER_ORDER"之后，最多再等这么久，
 # 看看同一批放号的其它场地是不是跟着出现。窗口一到就按实际可约数提交
 # （哪怕只有 1 个）—— 到手的绝不为了凑满 2 个而丢掉。
@@ -145,7 +154,7 @@ MAX_PER_ORDER = 2
 FILL_GRACE_SECONDS = 0.0
 
 # 页面轻量刷新的节拍（秒）：点站点自带的刷新图标重拉数据，比整页 reload 快得多。
-# 11:59 进入筛选状态后就开始按这个节拍刷新，保证浏览器里的界面和接口看到的是同一份数据，
+# 12:00 到点进入筛选状态后就开始按这个节拍刷新，保证浏览器里的界面和接口看到的是同一份数据，
 # 同时让「页面点击」这条兜底通道一直是热的。设成 0 就完全不刷新页面（纯接口模式）。
 DOM_REFRESH_EVERY = 5.0
 
@@ -154,6 +163,8 @@ DOM_REFRESH_EVERY = 5.0
 # 跨过 12:00 的第一轮会被标成「定点筛选」并立即用最新数据重新匹配一遍。
 PRE_RELEASE_WINDOW = 5.0
 PRE_RELEASE_INTERVAL = 0.05
+# 12:00 过后的这几秒内保持最密的重试节奏（目标日期往往要晚一点才出现在可约列表里）。
+RELEASE_BURST_SECONDS = 8.0
 
 
 class BookingApp:
@@ -317,7 +328,7 @@ class BookingApp:
             stats.columnconfigure(col, weight=1, uniform="stat")
         stat_data = [
             ("预约日期", date.today().strftime("%m-%d"), "默认选择当天"),
-            ("开始匹配", "11:59", "预约日期当天启动"),
+            ("开始匹配", "12:00", "预约日期当天启动"),
             ("监控模式", "自动", "多场地优先匹配"),
             ("刷新间隔", "1 秒", "刷新后滚动到底部"),
         ]
@@ -462,7 +473,7 @@ class BookingApp:
                   style="Card.TLabel").pack(side="left")
         ttk.Button(login, text="打开预约页面  →", command=self.open_page,
                    style="Primary.TButton").pack(side="right")
-        ttk.Label(frm, text="  每天 11:59 开始匹配场地；提前启动后，程序会自动等待开始时间。",
+        ttk.Label(frm, text="  每天 12:00 整开始匹配场地；提前启动后，程序会自动等待开始时间。",
                   style="Hint.TLabel").pack(fill="x", pady=(0, 12))
         overview = ttk.Frame(frm, style="Page.TFrame")
         overview.pack(fill="x", pady=(0, 12))
@@ -705,23 +716,18 @@ class BookingApp:
             return False, note
         return True, "登录自检未得到确认（%s），仍继续。" % note
 
-    @staticmethod
-    def _opening_for(date_text, now=None):
-        """开抢时刻 = 预约日期当天的 11:59。
+    @classmethod
+    def _opening_for(cls, date_text, now=None):
+        """开抢时刻 = 预约日期当天的 12:00:00（CHANG 定的：不再提前到 11:59）。
 
-        系统在预约日期当天 12:00 放号，所以提前一分钟进入筛选状态，
-        这样 12:00 那一瞬间已经在打接口，而不是刚启动。
+        与放号时刻完全重合，所以到点后**立刻**发起第一次筛选；
+        真正减少"刚启动那一下"延迟的是 PRE_RELEASE_INTERVAL（放号前后都收窄间隔）。
         """
-        now = now or datetime.now()
-        try:
-            day = datetime.strptime(str(date_text), "%Y-%m-%d")
-        except (TypeError, ValueError):
-            day = now
-        return day.replace(hour=11, minute=59, second=0, microsecond=0)
+        return cls._release_for(date_text, now)
 
     @staticmethod
     def _release_for(date_text, now=None):
-        """放号时刻 = 预约日期当天的 12:00:00（比开抢时刻 _opening_for 晚一分钟）。"""
+        """放号时刻 = 预约日期当天的 12:00:00。"""
         now = now or datetime.now()
         try:
             day = datetime.strptime(str(date_text), "%Y-%m-%d")
@@ -1038,14 +1044,14 @@ class BookingApp:
         )
 
         now = datetime.now()
-        # 抢场时序：预约日期当天 12:00 放号 -> 当天 11:59（提前一分钟）开始筛选场地，
-        # 这样 12:00 放号的那一瞬间已经在打接口，而不是刚启动。
+        # 抢场时序（CHANG 定的）：预约日期当天 12:00 放号，也在当天 12:00 整开始筛选。
+        # 不再提前到 11:59 —— 所以到点那一刻就立刻发起第一次筛选，一秒都不拖。
         opening = self._opening_for(date, now)
         target_day = opening
         if now < opening:
             wait_seconds = (opening - now).total_seconds()
             self.write(
-                f"{target_day:%Y-%m-%d} 12:00 放号，将在当天 11:59 开始筛选场地；"
+                f"{target_day:%Y-%m-%d} 12:00 放号，将在当天 12:00:00 整开始筛选场地；"
                 f"现在 {now:%H:%M:%S}，还需等待 "
                 f"{int(wait_seconds // 3600)} 小时 {int(wait_seconds % 3600 // 60)} 分。")
             # 先确认登录态再进长等待，免得干等几个小时才发现根本没登录。
@@ -1059,8 +1065,8 @@ class BookingApp:
             self.write(f"已到 {opening:%H:%M:%S}，开始筛选可用场地。")
 
         # ---------- 1. 同步元数据：真实场次 / 场地 / 时段 / 可约上限 ----------
-        # 11:59 开始筛选时，目标日期往往还没出现在可约场次里（12:00 才放号），
-        # 所以这里要重试等待它出现，而不是换一个日期。
+        # 12:00 刚过时，目标日期可能还没出现在可约场次里（放号有几十毫秒到几秒的延迟），
+        # 所以这里要高速重试等它出现，而不是换一个日期。
         retry_deadline = opening + timedelta(minutes=15)
         wait_logged = False
         last_report = 0.0
@@ -1068,7 +1074,7 @@ class BookingApp:
         wait_round = 0
         while True:
             wait_round += 1
-            # 从 11:59 起就开始刷新预约界面，放号前的每一轮都不闲着
+            # 12:00 整已到点，每一轮都保持刷新界面 + 重试，等目标日期放出来
             await self._tick_dom_refresh(dom_state)
             schedule_id, meta = await self._sync_metadata(date, quiet=wait_logged)
             if meta:
@@ -1087,7 +1093,14 @@ class BookingApp:
                 left = (retry_deadline - datetime.now()).total_seconds()
                 self.write("第 %d 轮：仍在刷新等待 %s 放号（还能等 %d 分 %d 秒）。"
                            % (wait_round, date, int(left // 60), int(left % 60)))
-            await asyncio.sleep(max(0.5, interval))
+            # 刚开抢的前 RELEASE_BURST_SECONDS 秒用最密的节奏重试：
+            # 目标日期可能比 12:00 晚几十毫秒到几秒才出现在可约列表里，
+            # 这段时间必须"一出现就抓住"，不能按常规间隔慢慢试。
+            burst_left = (datetime.now() - opening).total_seconds()
+            if 0 <= burst_left < RELEASE_BURST_SECONDS:
+                await asyncio.sleep(max(0.02, min(interval, PRE_RELEASE_INTERVAL)))
+            else:
+                await asyncio.sleep(max(0.5, interval))
         areas = meta["areas"]
 
         # ---------- 2. 界面选择 -> 备选池 + 单次提交上限 ----------
@@ -1099,27 +1112,29 @@ class BookingApp:
             if areas:
                 self.write("接口实际返回的场地：" + "、".join(a["name"] for a in areas))
             return
-        self.write("备选池共 %d 个单元（%s）。系统单次最多选 %d 个，开抢时按上面的顺序"
-                   "取前 %d 个可约的提交，其余顺延备用。" % (
+        self.write("备选池共 %d 个单元（%s）。系统单次最多选 %d 个，开抢时%s"
+                   "提交 %d 个，其余顺延备用。" % (
                        len(candidates), "、".join("%s %s" % c for c in candidates),
-                       MAX_PER_ORDER, min(limit, len(candidates))))
+                       MAX_PER_ORDER,
+                       ("从不同时段轮流取，保证落在不同时段，"
+                        if CROSS_SLOT_PICK and self._slot_count(candidates) > 1 else
+                        "按上面的顺序取前几个可约的，"),
+                       min(limit, len(candidates))))
 
         # ---------- 3. 主循环：只读接口，凑够单次上限就动手 ----------
-        # 光"轮询快"还不够：12:00 这个点上必须准时有一次确定的筛选，
-        # 所以放号前最后几秒把间隔收窄，跨过 12:00 的第一轮会被标成定点筛选。
+        # 光"轮询快"还不够：12:00 这个点上必须准时有一次确定的筛选。
+        # 现在是 12:00 整才开始，所以这一轮就是"进主循环的第一轮"，
+        # 并且开抢后 RELEASE_BURST_SECONDS 秒内保持 0.05 秒的密节奏。
         release = self._release_for(date, now)
-        release_pending = now < release
-        if release_pending:
-            self.write("放号时刻 %s：到点会立即做一次定点筛选"
-                       "（最后 %d 秒把探测间隔收窄到 %.2f 秒）。"
-                       % (release.strftime("%H:%M:%S"),
-                          int(PRE_RELEASE_WINDOW), PRE_RELEASE_INTERVAL))
+        self.write("放号时刻 %s：已到点，立即开始筛选"
+                   "（开抢后 %d 秒内保持 %.2f 秒的探测节奏）。"
+                   % (release.strftime("%H:%M:%S"),
+                      int(RELEASE_BURST_SECONDS), PRE_RELEASE_INTERVAL))
 
         def nap():
-            if release_pending:
-                left = (release - datetime.now()).total_seconds()
-                if left <= PRE_RELEASE_WINDOW:
-                    return max(0.02, min(interval, PRE_RELEASE_INTERVAL))
+            left = (datetime.now() - release).total_seconds()
+            if 0 <= left < RELEASE_BURST_SECONDS:
+                return max(0.02, min(interval, PRE_RELEASE_INTERVAL))
             return interval
 
         poll_no = 0
@@ -1132,13 +1147,10 @@ class BookingApp:
             poll_no += 1
             # 界面跟着一起刷，保证页面上看到的就是这一轮匹配用的数据
             await self._tick_dom_refresh(dom_state)
-            # 跨过放号时刻的第一轮 = 12:00 定点筛选
-            hit_release = False
-            if release_pending and datetime.now() >= release:
-                release_pending = False
-                hit_release = True
-                self.write("已到 %s 放号时刻，执行定点筛选。"
-                           % release.strftime("%H:%M:%S"))
+            # 进主循环的第一轮 = 12:00 定点筛选（这一刻就是放号时刻）
+            hit_release = poll_no == 1
+            if hit_release:
+                self.write("已到 %s 放号时刻，执行定点筛选。" % release.strftime("%H:%M:%S"))
             try:
                 res = await asyncio.wait_for(self._api_detail(schedule_id), timeout=10)
             except asyncio.TimeoutError:
@@ -1160,7 +1172,8 @@ class BookingApp:
 
             live = self.normalize_detail(detail)
             now_dt = datetime.now()
-            # 按备选池顺序挑：池子头部的先抢，抢不到自动顺延到后面的备选。
+            # 跨时段轮转挑：先从每个时段各取 1 个（保证不同时段），不够再回头补；
+            # 抢不到自动顺延到后面的备选。
             ready, available, blocked, quota = self._pick_targets(
                 candidates, live["cells"], now_dt, limit)
 
@@ -1174,6 +1187,10 @@ class BookingApp:
                 if blocked:
                     detail_text += "；未就绪：" + "、".join(
                         "%s %s %s" % (k[0], k[1], w) for k, w in blocked[:3])
+                # 跨时段轮转挑出来的和"死板取前几个"不一样时，把这 2 个点明
+                if ready and [k for k, _s in ready] != [k for k, _s in available[:quota]]:
+                    detail_text += "；跨时段取：" + "、".join(
+                        "%s %s" % k for k, _s in ready)
                 self.write("%s第 %d 轮：可约 %d/%d（本次要凑 %d 个）%s" % (
                     "【12:00 定点筛选】" if hit_release else "",
                     poll_no, len(available), len(candidates), quota, detail_text))
@@ -1214,7 +1231,7 @@ class BookingApp:
                     % (len(ready), quota)):
                 return
             grace_until = time.monotonic() + max(interval, 1.0)
-            await asyncio.sleep(interval)
+            await asyncio.sleep(nap())
 
     @classmethod
     def _venue_order(cls):
@@ -1269,13 +1286,13 @@ class BookingApp:
         """界面勾选 -> 备选池 + 单次提交上限。
 
         返回 (candidates, notes, limit)：
-          candidates —— **完整**备选池，不再裁剪。它的顺序就是"按顺序取"的依据：
-                        时段优先（界面时段从上到下），每个时段内按场地清单顺序。
+          candidates —— **完整**备选池，不再裁剪。它的顺序是"时段优先"（界面时段从上到下，
+                        每个时段内按场地清单顺序），同时也是跨时段轮转的排序依据。
           limit      —— 本次最多提交几个（系统硬上限与接口上限取小）。
         notes 是需要回显到日志的说明。
 
-        勾多了不会被丢掉：开抢时由 _pick_targets 从池子头部开始挑可约的，
-        挑够 limit 个就提交；前面的抢不到会自动往后顺延到备选。
+        勾多了不会被丢掉：开抢时由 _pick_targets 从池子里挑可约的（跨时段轮转，
+        见 CROSS_SLOT_PICK），挑够 limit 个就提交；抢不到的自动顺延到后面的备选。
         """
         areas = meta.get("areas") or []
         max_n = meta.get("max_n") or 0
@@ -1310,15 +1327,59 @@ class BookingApp:
         if 0 < max_n < limit:
             limit = max_n
             notes.append("接口显示本次最多只能选 %d 个，单次提交数已降到 %d。" % (max_n, max_n))
+        slots = self._slot_count(candidates)
+        if CROSS_SLOT_PICK and slots > 1 and limit > 1:
+            notes.append("勾选覆盖 %d 个时段：开抢时从不同时段轮流取，"
+                         "保证 %d 个场次落在不同时段（某个时段一片都没货时才退回同时段）。"
+                         % (slots, limit))
         return candidates, notes, limit
+
+    @staticmethod
+    def _slot_count(candidates):
+        """备选池覆盖了几个不同时段。"""
+        return len({key[0] for key in candidates if isinstance(key, tuple) and key})
+
+    @staticmethod
+    def _interleave_slots(available, quota):
+        """按时段轮转取前 quota 个：第 1 轮每个时段各取 1 个，第 2 轮再各取 1 个……
+
+        available 的既有顺序就是池子顺序（时段优先），所以"时段第一次出现的次序"
+        = 界面勾选的时段顺序，时段内部仍按场地清单顺序。
+        于是：两个时段都有货时，取到的头 2 个必定来自不同时段；
+        某个时段一片都没货时，后面的轮次自然回落到有货的时段 —— 有几个抢先几个。
+        """
+        if quota <= 0 or not available:
+            return []
+        buckets, order = {}, []
+        for item in available:
+            key = item[0]
+            slot = key[0] if isinstance(key, tuple) and key else key
+            if slot not in buckets:
+                buckets[slot] = []
+                order.append(slot)
+            buckets[slot].append(item)
+        picked, round_no = [], 0
+        while len(picked) < quota:
+            added = False
+            for slot in order:
+                if len(picked) >= quota:
+                    break
+                if round_no < len(buckets[slot]):
+                    picked.append(buckets[slot][round_no])
+                    added = True
+            if not added:
+                break
+            round_no += 1
+        return picked
 
     @classmethod
     def _pick_targets(cls, candidates, cells, now, limit):
-        """按池子顺序挑出本轮要提交的单元。
+        """挑出本轮要提交的单元（跨时段轮转，见 CROSS_SLOT_PICK）。
 
         返回 (ready, available, blocked, quota)：
-          ready     —— 真正拿去下单的 [(key, session_id)]，池子顺序，最多 quota 个
-          available —— 本轮全部可约单元，同样按池子顺序
+          ready     —— 真正拿去下单的 [(key, session_id)]，最多 quota 个；
+                       覆盖多个时段且都有可约时，前 2 个必定一个时段一个
+          available —— 本轮全部可约单元，仍按池子顺序（时段优先），只用于计数/日志
           blocked   —— [(key, 原因)]，只用于日志
           quota     —— 本次想要凑到的个数（= min(limit, 池子大小)）
 
@@ -1334,7 +1395,11 @@ class BookingApp:
             else:
                 blocked.append((key, why))
         quota = min(int(limit or 0), len(candidates)) if candidates else 0
-        return available[:quota], available, blocked, quota
+        if CROSS_SLOT_PICK:
+            ready = cls._interleave_slots(available, quota)
+        else:
+            ready = available[:quota]
+        return ready, available, blocked, quota
 
     async def _lock_targets(self, schedule_id, live, ready, note):
         """按挑好的单元去锁定：极速模式直接下单，失败再回落到页面点击。"""
@@ -1384,7 +1449,7 @@ class BookingApp:
                 picked = item
                 break
         if picked is None:
-            # 绝不静默换成别的日期 —— 在 11:59 这条路径上，目标日期正是放号瞬间
+            # 绝不静默换成别的日期 —— 在 12:00 这条路径上，目标日期正是放号瞬间
             # 才会出现；此时随便挑一个场次等于"抢错天"。交给上层重试。
             if not quiet:
                 dates = "、".join(str(i.get("schedule_date")) for i in schedule_list[:5])
@@ -1859,7 +1924,7 @@ class QtBookingApp(QMainWindow):
         metrics.setVerticalSpacing(16)
         metric_data = [
             ("预约日期", date.today().strftime("%m-%d"), "默认选择当天"),
-            ("开始匹配", "11:59", "精确对时，误差 < 0.1 秒"),
+            ("开始匹配", "12:00", "精确对时，误差 < 0.1 秒"),
             ("探测方式", "接口轮询", "不刷新页面，毫秒级"),
             ("命中之后", "直接下单", "极速模式，可切换为点击"),
         ]
@@ -2149,9 +2214,14 @@ class QtBookingApp(QMainWindow):
         self.fast_submit = bool(self.fast_box.isChecked())
         units = len(times) * len(courts)
         if units > MAX_PER_ORDER:
-            self.write("已勾选 %d 个时段 × %d 片场地 = %d 个备选单元；开抢时按顺序取前 %d 个"
-                       "可约的提交，其余顺延备用。" % (
-                           len(times), len(courts), units, MAX_PER_ORDER))
+            if CROSS_SLOT_PICK and len(times) > 1:
+                self.write("已勾选 %d 个时段 × %d 片场地 = %d 个备选单元；开抢时从不同时段"
+                           "轮流取 %d 个（保证落在不同时段），其余顺延备用。" % (
+                               len(times), len(courts), units, MAX_PER_ORDER))
+            else:
+                self.write("已勾选 %d 个时段 × %d 片场地 = %d 个备选单元；开抢时按顺序取前 %d 个"
+                           "可约的提交，其余顺延备用。" % (
+                               len(times), len(courts), units, MAX_PER_ORDER))
         self.write("已点击开始监控，正在准备预约页面……")
         self.start_btn.setEnabled(False)
         self.start_btn.setText("监控进行中…")
@@ -2220,6 +2290,8 @@ for _controller_method in (
     "_resolve_area",
     "_build_targets",
     "_pick_targets",
+    "_slot_count",
+    "_interleave_slots",
     "_lock_targets",
     "_sync_metadata",
     "_fast_submit",

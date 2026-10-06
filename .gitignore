@@ -8,15 +8,31 @@ outputs/
 # PyInstaller 打包产物
 build/
 build-v2/
+build-v2.old-*/
 dist/
 dist-v2/
+dist-v2.old-*/
 installer/
 *.spec
 _internal/
 *.exe
+
+# 安装包 / 压缩包
+*.zip
+*.7z
+*.rar
 
 # 旧版备份
 *.bak
 *.bak-*
 *.prev-*
 *_旧版备份_*
+
+# v1 遗留源码（仓库历史里已有它到 v2 的完整演化，不再跟踪）
+/venue_booking_tool.py
+
+# 编辑器 / 工具
+.vscode/
+.idea/
+.agents/
+.codex/
